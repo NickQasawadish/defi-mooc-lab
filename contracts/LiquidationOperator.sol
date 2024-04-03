@@ -23,6 +23,7 @@ interface ILendingPool {
     function liquidationCall(
         address collateralAsset,
         address debtAsset,
+    
         address user,
         uint256 debtToCover,
         bool receiveAToken
@@ -185,17 +186,46 @@ contract LiquidationOperator is IUniswapV2Callee {
 
     // TODO: add a `receive` function so that you can withdraw your WETH
     //   *** Your code here ***
+    receive() external payable {
+       
     // END TODO
 
     // required by the testing script, entry for your liquidation call
-    function operate() external {
+        // Your code here
+    }
         // TODO: implement your liquidation logic
 
         // 0. security checks and initializing variables
         //    *** Your code here ***
+        uint256 totalCollateralETH;
+        uint256 totalDebtETH;
+        uint256 availableBorrowsETH;
+        uint256 currentLiquidationThreshold;
+        uint256 ltv;
+        uint256 healthFactor;
 
         // 1. get the target user account data & make sure it is liquidatable
         //    *** Your code here ***
+
+    (
+        totalCollateralETH,
+        totalDebtETH,
+        availableBorrowsETH,
+        currentLiquidationThreshold,
+        ltv,
+        healthFactor
+        ) ILendingPool lending_pool = ILendingPool(address(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9));
+        (
+        totalCollateralETH,
+        totalDebtETH,
+        availableBorrowsETH,
+        currentLiquidationThreshold,
+        ltv,
+        healthFactor
+        ) = lending_pool.getUserAccountData(targetUser);
+        require(
+        "Health factor > 1"
+        );
 
         // 2. call flash swap to liquidate the target user
         // based on https://etherscan.io/tx/0xac7df37a43fab1b130318bbb761861b8357650db2e2c6493b73d6da3d9581077
@@ -203,10 +233,13 @@ contract LiquidationOperator is IUniswapV2Callee {
         // we should borrow USDT, liquidate the target user and get the WBTC, then swap WBTC to repay uniswap
         // (please feel free to develop other workflows as long as they liquidate the target user successfully)
         //    *** Your code here ***
+        USDT_WETH.swap(0, amount_repay, me, abi.encode("flash loan"));
 
         // 3. Convert the profit into ETH and send back to sender
         //    *** Your code here ***
-
+        uint currWETHBalance = weth_pool.balance(me);
+        weth_pool.withdraw(currWETHBalance);
+        payable(msg.sender).transfer(me.balance);
         // END TODO
     }
 
@@ -221,15 +254,40 @@ contract LiquidationOperator is IUniswapV2Callee {
 
         // 2.0. security checks and initializing variables
         //    *** Your code here ***
+require(msg.sender == address(USDT_WETH));
 
         // 2.1 liquidate the target user
         //    *** Your code here ***
+        uint256 debt_repay = amount1;
+        lending_pool.liquidationCall(
+            WBTC_address,
+            USDT_adress,
+            targetUser_address,
+            debt_repay,
+            false
+        );
+
+        uint collWBTC = wbtc_pool.balanceOF(me);
 
         // 2.2 swap WBTC for other things or repay directly
         //    *** Your code here ***
+        wbtc_pool.transfer(address(WBTC_USDT), collWBTC);
+        uint256 WETH_amountOut = getAmountOut(
+            collWBTC,
+            reserve_WBTC_USDT.PoolB,
+            reserve_WBTC_USDT.PoolB
+        );
+        WBTC_WETH.swap(0, WETH_amountOut, me, "");
+        
 
         // 2.3 repay
         //    *** Your code here ***
+        uint WETH_repay = getAmountIn(
+            debt_repay,
+            reserve_WETH_PoolA,
+            reserve_USDT_PoolA
+        );
+        weth_pool.transfer(address(USDT_WETH), WETH_repay);
         
         // END TODO
     }
